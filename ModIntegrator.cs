@@ -309,11 +309,6 @@ namespace AstroModIntegrator
             {
                 f.Write(pakData, 0, pakData.Length);
             }
-
-            foreach (var path in IntegratorUtils.BannedFilesInOutputDirectory)
-            {
-                try { File.Delete(Path.Combine(paksPath, path)); } catch { }
-            }
         }
 
         private Dictionary<string, byte[]> StarterPakData = new Dictionary<string, byte[]>();

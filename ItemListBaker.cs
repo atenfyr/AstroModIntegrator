@@ -22,6 +22,7 @@ namespace AstroModIntegrator
         {
             UAsset y = new UAsset(IntegratorUtils.EngineVersion);
             y.UseSeparateBulkDataFiles = true;
+            y.CustomSerializationFlags = CustomSerializationFlags.SkipParsingBytecode | CustomSerializationFlags.SkipPreloadDependencyLoading;
             y.Read(new AssetBinaryReader(new MemoryStream(superRawData), y));
 
             // Find some categories
