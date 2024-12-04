@@ -6,8 +6,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UAssetAPI;
+using UAssetAPI.ExportTypes;
 using UAssetAPI.PropertyTypes;
+using UAssetAPI.PropertyTypes.Objects;
 using UAssetAPI.StructTypes;
+using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
@@ -31,7 +34,7 @@ namespace AstroModIntegrator
             Extractor = extractor;
             ParentIntegrator = integrator;
 
-            UAsset y = new UAsset(IntegratorUtils.EngineVersion);
+            UAsset y = new UAsset(EngineVersion.VER_UE4_18);
             y.Read(new AssetBinaryReader(new MemoryStream(Properties.Resources.LevelTemplate), y));
             refData1B = y.Exports[2];
             refData2B = y.Exports[11];
@@ -77,7 +80,7 @@ namespace AstroModIntegrator
 
                                     y.AddNameReference(new FString(realName));
                                     y.AddNameReference(new FString(softClassName));
-                                    Import newLink = new Import("/Script/Astro", "AstroMissionDataAsset", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), realName)), softClassName);
+                                    Import newLink = new Import("/Script/Astro", "AstroMissionDataAsset", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), realName, false, y)), softClassName, false, y);
                                     FPackageIndex bigNewLink = y.AddImport(newLink);
 
                                     usArrData[oldLen + j] = new ObjectPropertyData(arrDat.Name)
@@ -136,15 +139,15 @@ namespace AstroModIntegrator
                 y.AddNameReference(new FString("Default__" + component + "_C"));
                 y.AddNameReference(new FString(component));
 
-                Import firstLink = new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), componentPath);
+                Import firstLink = new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), componentPath, false, y);
                 FPackageIndex bigFirstLink = y.AddImport(firstLink);
-                Import newLink = new Import("/Script/Engine", "BlueprintGeneratedClass", bigFirstLink, component + "_C");
+                Import newLink = new Import("/Script/Engine", "BlueprintGeneratedClass", bigFirstLink, component + "_C", false, y);
                 FPackageIndex bigNewLink = y.AddImport(newLink);
-                Import newLink2 = new Import(componentPath, component + "_C", bigFirstLink, "Default__" + component + "_C");
+                Import newLink2 = new Import(componentPath, component + "_C", bigFirstLink, "Default__" + component + "_C", false, y);
                 FPackageIndex bigNewLink2 = y.AddImport(newLink2);
 
                 refData1.ClassIndex = bigNewLink;
-                refData1.ObjectName = new FName(component);
+                refData1.ObjectName = new FName(y, component);
                 refData1.TemplateIndex = bigNewLink2;
 
                 // Note that category links are set to one more than you'd think since categories in the category list index from 1 instead of 0
@@ -267,25 +270,25 @@ namespace AstroModIntegrator
 
                     refData2.ClassIndex = FPackageIndex.FromRawIndex(blueprintCreatedComponent.TypeLink);
                     y.AddNameReference(new FString(blueprintCreatedComponent.InternalVariableName));
-                    refData2.ObjectName = new FName(blueprintCreatedComponent.InternalVariableName);
+                    refData2.ObjectName = new FName(y, blueprintCreatedComponent.InternalVariableName);
                     refData2.OuterIndex = FPackageIndex.FromRawIndex(templateCategoryPointer); // Template category
 
                     var determinedPropData = new List<PropertyData>
                     {
-                        new BoolPropertyData(new FName("bNetAddressable"))
+                        new BoolPropertyData(new FName(y, "bNetAddressable"))
                         {
                             Value = true,
                         },
-                        new EnumPropertyData(new FName("CreationMethod"))
+                        new EnumPropertyData(new FName(y, "CreationMethod"))
                         {
-                            EnumType = new FName("EComponentCreationMethod"),
-                            Value = new FName("EComponentCreationMethod::SimpleConstructionScript")
+                            EnumType = new FName(y, "EComponentCreationMethod"),
+                            Value = new FName(y, "EComponentCreationMethod::SimpleConstructionScript")
                         }
                     };
 
                     if (blueprintCreatedComponent.AttachParent >= 0)
                     {
-                        var nextOPD = new ObjectPropertyData(new FName("AttachParent"))
+                        var nextOPD = new ObjectPropertyData(new FName(y, "AttachParent"))
                         {
                             Value = FPackageIndex.FromRawIndex(blueprintCreatedComponent.AttachParent)
                         };
@@ -297,14 +300,14 @@ namespace AstroModIntegrator
                     sceneCat.Extras = new byte[4] { 0, 0, 0, 0 };
                     sceneCat.Data = determinedPropData;
                     y.Exports.Add(sceneCat);
-                    BlueprintCreatedComponentsSerializedList.Add(new ObjectPropertyData(new FName("BlueprintCreatedComponents"))
+                    BlueprintCreatedComponentsSerializedList.Add(new ObjectPropertyData(new FName(y, "BlueprintCreatedComponents"))
                     {
                         Value = FPackageIndex.FromRawIndex(y.Exports.Count)
                     });
                     NodeNameToCatIndex.Add(blueprintCreatedComponent.InternalVariableName, y.Exports.Count);
                     OldCatToNewCat.Add(blueprintCreatedComponent.OriginalCategory, y.Exports.Count);
 
-                    y.AddImport(new Import("/Script/Engine", FPackageIndex.FromRawIndex(blueprintCreatedComponent.TypeLink).ToImport(y).ObjectName.Value.Value, refData1.ClassIndex, blueprintCreatedComponent.InternalVariableName + "_GEN_VARIABLE"));
+                    y.AddImport(new Import("/Script/Engine", FPackageIndex.FromRawIndex(blueprintCreatedComponent.TypeLink).ToImport(y).ObjectName.Value.Value, refData1.ClassIndex, blueprintCreatedComponent.InternalVariableName + "_GEN_VARIABLE", false, y));
                 }
 
                 foreach (ObjectPropertyData attachParentCorrecting in AttachParentDueForCorrection)
@@ -315,13 +318,13 @@ namespace AstroModIntegrator
                 // Then we add the template category
                 var templateDeterminedPropData = new List<PropertyData>
                 {
-                    new BoolPropertyData(new FName("bHidden"))
+                    new BoolPropertyData(new FName(y, "bHidden"))
                     {
                         Value = true
                     },
-                    new ArrayPropertyData(new FName("BlueprintCreatedComponents"))
+                    new ArrayPropertyData(new FName(y, "BlueprintCreatedComponents"))
                     {
-                        ArrayType = new FName("ObjectProperty"),
+                        ArrayType = new FName(y, "ObjectProperty"),
                         Value = BlueprintCreatedComponentsSerializedList.ToArray()
                     }
                 };
@@ -330,12 +333,12 @@ namespace AstroModIntegrator
                 {
                     if (entry.Key == "DefaultSceneRoot")
                     {
-                        templateDeterminedPropData.Add(new ObjectPropertyData(new FName("RootComponent"))
+                        templateDeterminedPropData.Add(new ObjectPropertyData(new FName(y, "RootComponent"))
                         {
                             Value = FPackageIndex.FromRawIndex(entry.Value)
                         });
                     }
-                    templateDeterminedPropData.Add(new ObjectPropertyData(new FName(entry.Key))
+                    templateDeterminedPropData.Add(new ObjectPropertyData(new FName(y, entry.Key))
                     {
                         Value = FPackageIndex.FromRawIndex(entry.Value)
                     });
@@ -345,12 +348,12 @@ namespace AstroModIntegrator
                 lastExport.SerializationBeforeCreateDependencies.Add(bigNewLink);
                 lastExport.SerializationBeforeCreateDependencies.Add(bigNewLink2);
                 lastExport.CreateBeforeCreateDependencies.Add(FPackageIndex.FromRawIndex(levelLocation + 1));
-                lastExport.Extras = new byte[4] { 0, 0, 0, 0 };
+                lastExport.Extras = Array.Empty<byte>();
                 lastExport.Data = templateDeterminedPropData;
                 y.Exports.Add(lastExport);
 
                 // Add the template category to the level category
-                levelCategory.IndexData.Add(y.Exports.Count);
+                levelCategory.Actors.Add(FPackageIndex.FromRawIndex(y.Exports.Count));
                 levelCategory.CreateBeforeSerializationDependencies.Add(FPackageIndex.FromRawIndex(y.Exports.Count));
             }
 

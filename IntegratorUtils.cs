@@ -6,6 +6,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Text.RegularExpressions;
 using UAssetAPI;
+using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
@@ -28,11 +29,19 @@ namespace AstroModIntegrator
 
     public static class IntegratorUtils
     {
-        public static readonly UE4Version EngineVersion = UE4Version.VER_UE4_23;
+        public static readonly EngineVersion EngineVersion = EngineVersion.VER_UE4_23;
         public static readonly Version CurrentVersion = new Version(1, 3, 1, 0);
         public static readonly string[] IgnoredModIDs = new string[]
         {
-            "AstroModIntegrator"
+            "AstroModIntegrator",
+            "ModIntegrator"
+        };
+
+        // this is used just to ensure that astro_modloader (Rust) files are not kept accidentally
+        public static List<string> BannedFilesInOutputDirectory = new List<string>
+        {
+            "900-AstroModIntegrator-0.1.0_P.pak",
+            "800-CoreMod-0.1.0_P.pak"
         };
 
         internal static void CopySplitUp(Stream input, Stream output, int start, int leng)

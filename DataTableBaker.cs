@@ -1,11 +1,12 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using UAssetAPI;
-using UAssetAPI.PropertyTypes;
-using UAssetAPI.StructTypes;
+using UAssetAPI.ExportTypes;
+using UAssetAPI.PropertyTypes.Objects;
+using UAssetAPI.PropertyTypes.Structs;
+using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
@@ -80,15 +81,15 @@ namespace AstroModIntegrator
                 });
                 rows.Add(new StrPropertyData(columns[4])
                 {
-                    Value = new FString(mod.AstroBuild?.ToString() ?? "", Encoding.ASCII),
+                    Value = new FString(mod.GameBuild?.ToString() ?? "", Encoding.ASCII),
                 });
                 y.AddNameReference(new FString("SyncMode"));
                 y.AddNameReference(new FString(codedSyncMode));
                 rows.Add(new BytePropertyData(columns[5])
                 {
                     ByteType = BytePropertyType.FName,
-                    EnumType = new FName("SyncMode"),
-                    EnumValue = new FName(codedSyncMode)
+                    EnumType = new FName(y, "SyncMode"),
+                    EnumValue = new FName(y, codedSyncMode)
                 });
                 rows.Add(new StrPropertyData(columns[6])
                 {
@@ -99,7 +100,7 @@ namespace AstroModIntegrator
                     Value = optionalModIDs.Contains(mod.ModID),
                 });
 
-                newTable.Add(new StructPropertyData(new FName(mod.ModID))
+                newTable.Add(new StructPropertyData(new FName(y, mod.ModID))
                 {
                     StructType = tab[0].StructType,
                     Value = rows
@@ -116,24 +117,26 @@ namespace AstroModIntegrator
             y.UseSeparateBulkDataFiles = true;
             y.Read(new AssetBinaryReader(new MemoryStream(superRawData), y));
 
-            FPackageIndex brandNewLink = y.AddImport(new Import("/Script/Engine", "BlueprintGeneratedClass", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), "/Game/Integrator/IntegratorStatics_BP")), "IntegratorStatics_BP_C"));
-
-            NormalExport cat1 = y.Exports[0] as NormalExport;
+            NormalExport cat1 = null;
+            foreach (var exp in y.Exports)
+            {
+                if (exp.ObjectFlags.HasFlag(EObjectFlags.RF_ClassDefaultObject))
+                {
+                    cat1 = exp as NormalExport;
+                    break;
+                }
+            }    
             if (cat1 == null) return null;
 
             cat1.Data = new List<PropertyData>()
             {
-                new StrPropertyData(new FName("IntegratorVersion"))
+                new StrPropertyData(new FName(y, "IntegratorVersion"))
                 {
                     Value = new FString(IntegratorUtils.CurrentVersion.ToString(), Encoding.ASCII)
                 },
-                new BoolPropertyData(new FName("RefuseMismatchedConnections"))
+                new BoolPropertyData(new FName(y, "RefuseMismatchedConnections"))
                 {
                     Value = ParentIntegrator.RefuseMismatchedConnections
-                },
-                new ObjectPropertyData(new FName("NativeClass"))
-                {
-                    Value = brandNewLink
                 }
             };
 

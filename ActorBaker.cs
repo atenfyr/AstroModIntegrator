@@ -3,8 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using UAssetAPI;
+using UAssetAPI.ExportTypes;
 using UAssetAPI.PropertyTypes;
+using UAssetAPI.PropertyTypes.Objects;
+using UAssetAPI.PropertyTypes.Structs;
 using UAssetAPI.StructTypes;
+using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
@@ -16,7 +20,7 @@ namespace AstroModIntegrator
 
         public ActorBaker()
         {
-            UAsset y = new UAsset(IntegratorUtils.EngineVersion);
+            UAsset y = new UAsset(EngineVersion.VER_UE4_18);
             y.Read(new AssetBinaryReader(new MemoryStream(Properties.Resources.ActorTemplate), y));
             refData1B = y.Exports[6];
             refData2B = y.Exports[5];
@@ -56,10 +60,10 @@ namespace AstroModIntegrator
             if (scsLocation < 0) throw new FormatException("Unable to find SimpleConstructionScript");
             if (bgcLocation < 0) throw new FormatException("Unable to find BlueprintGeneratedClass");
             if (cdoLocation < 0) throw new FormatException("Unable to find CDO");
-            int objectPropertyLink = y.SearchForImport(new FName("/Script/CoreUObject"), new FName("Class"), new FName("ObjectProperty"));
-            int objectPropertyLink2 = y.SearchForImport(new FName("/Script/CoreUObject"), new FName("ObjectProperty"), new FName("Default__ObjectProperty"));
-            int scsNodeLink = y.SearchForImport(new FName("/Script/CoreUObject"), new FName("Class"), new FName("SCS_Node"));
-            int scsNodeLink2 = y.SearchForImport(new FName("/Script/Engine"), new FName("SCS_Node"), new FName("Default__SCS_Node"));
+            int objectPropertyLink = y.SearchForImport(new FName(y, "/Script/CoreUObject"), new FName(y, "Class"), new FName(y, "ObjectProperty"));
+            int objectPropertyLink2 = y.SearchForImport(new FName(y, "/Script/CoreUObject"), new FName(y, "ObjectProperty"), new FName(y, "Default__ObjectProperty"));
+            int scsNodeLink = y.SearchForImport(new FName(y, "/Script/CoreUObject"), new FName(y, "Class"), new FName(y, "SCS_Node"));
+            int scsNodeLink2 = y.SearchForImport(new FName(y, "/Script/Engine"), new FName(y, "SCS_Node"), new FName(y, "Default__SCS_Node"));
             byte[] noneRef = BitConverter.GetBytes((long)y.SearchNameReference(FString.FromString("None")));
 
             y.AddNameReference(new FString("bAutoActivate"));
@@ -84,23 +88,23 @@ namespace AstroModIntegrator
                 y.AddNameReference(new FString(component));
                 y.AddNameReference(new FString("SCS_Node"));
 
-                Import firstLink = new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), componentPath);
+                Import firstLink = new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), componentPath, false, y);
                 FPackageIndex bigFirstLink = y.AddImport(firstLink);
-                Import newLink = new Import("/Script/Engine", "BlueprintGeneratedClass", bigFirstLink, component + "_C");
+                Import newLink = new Import("/Script/Engine", "BlueprintGeneratedClass", bigFirstLink, component + "_C", false, y);
                 FPackageIndex bigNewLink = y.AddImport(newLink);
-                Import newLink2 = new Import(componentPath, component + "_C", bigFirstLink, "Default__" + component + "_C");
+                Import newLink2 = new Import(componentPath, component + "_C", bigFirstLink, "Default__" + component + "_C", false, y);
                 FPackageIndex bigNewLink2 = y.AddImport(newLink2);
 
                 refData2.ClassIndex = bigNewLink;
-                refData2.ObjectName = new FName(component + "_GEN_VARIABLE");
+                refData2.ObjectName = new FName(y, component + "_GEN_VARIABLE");
                 refData2.TemplateIndex = bigNewLink2;
 
                 refData1.ClassIndex = FPackageIndex.FromRawIndex(objectPropertyLink);
-                refData1.ObjectName = new FName(component);
+                refData1.ObjectName = new FName(y, component);
                 refData1.TemplateIndex = FPackageIndex.FromRawIndex(objectPropertyLink2);
 
                 refData3.ClassIndex = FPackageIndex.FromRawIndex(scsNodeLink);
-                refData3.ObjectName = new FName("SCS_Node");
+                refData3.ObjectName = new FName(y, "SCS_Node");
                 refData3.TemplateIndex = FPackageIndex.FromRawIndex(scsNodeLink2);
 
                 List<byte> rawData = new List<byte>();
@@ -142,10 +146,10 @@ namespace AstroModIntegrator
                 templateCat.SerializationBeforeCreateDependencies.Add(bigNewLink);
                 templateCat.SerializationBeforeCreateDependencies.Add(bigNewLink2);
                 templateCat.CreateBeforeCreateDependencies.Add(FPackageIndex.FromRawIndex(bgcLocation + 1));
-                templateCat.Extras = new byte[4] { 0, 0, 0, 0 };
+                templateCat.Extras = Array.Empty<byte>();
                 templateCat.Data = new List<PropertyData>
                 {
-                    new BoolPropertyData(new FName("bAutoActivate"))
+                    new BoolPropertyData(new FName(y, "bAutoActivate"))
                     {
                         Value = true
                     }
@@ -159,14 +163,14 @@ namespace AstroModIntegrator
                 RawExport objectCat = refData1.ConvertToChildExport<RawExport>();
                 objectCat.CreateBeforeSerializationDependencies.Add(bigNewLink);
                 objectCat.CreateBeforeCreateDependencies.Add(FPackageIndex.FromRawIndex(bgcLocation + 1));
-                objectCat.Extras = new byte[0];
+                objectCat.Extras = Array.Empty<byte>();
                 objectCat.Data = rawData.ToArray();
                 y.Exports.Add(objectCat);
 
                 // Then the SCS_Node
                 NormalExport scsCat = refData3.ConvertToChildExport<NormalExport>();
-                scsCat.ObjectName = new FName("SCS_Node", ++nodeOffset);
-                scsCat.Extras = new byte[4] { 0, 0, 0, 0 };
+                scsCat.ObjectName = new FName(y, "SCS_Node", ++nodeOffset);
+                scsCat.Extras = Array.Empty<byte>();
                 scsCat.CreateBeforeSerializationDependencies.Add(bigNewLink);
                 scsCat.CreateBeforeSerializationDependencies.Add(FPackageIndex.FromRawIndex(y.Exports.Count - 1));
                 scsCat.SerializationBeforeCreateDependencies.Add(FPackageIndex.FromRawIndex(scsNodeLink));
@@ -174,27 +178,27 @@ namespace AstroModIntegrator
                 scsCat.CreateBeforeCreateDependencies.Add(FPackageIndex.FromRawIndex(scsLocation + 1));
                 scsCat.Data = new List<PropertyData>
                 {
-                    new ObjectPropertyData(new FName("ComponentClass"))
+                    new ObjectPropertyData(new FName(y, "ComponentClass"))
                     {
                         Value = bigNewLink
                     },
-                    new ObjectPropertyData(new FName("ComponentTemplate"))
+                    new ObjectPropertyData(new FName(y, "ComponentTemplate"))
                     {
                         Value = FPackageIndex.FromRawIndex(y.Exports.Count - 1) // the first NormalCategory
                     },
-                    new StructPropertyData(new FName("VariableGuid"), new FName("Guid"))
+                    new StructPropertyData(new FName(y, "VariableGuid"), new FName(y, "Guid"))
                     {
                         Value = new List<PropertyData>
                         {
-                            new GuidPropertyData(new FName("VariableGuid"))
+                            new GuidPropertyData(new FName(y, "VariableGuid"))
                             {
                                 Value = Guid.NewGuid()
                             }
                         }
                     },
-                    new NamePropertyData(new FName("InternalVariableName"))
+                    new NamePropertyData(new FName(y, "InternalVariableName"))
                     {
-                        Value = new FName(component)
+                        Value = new FName(y, component)
                     }
                 };
                 y.Exports.Add(scsCat);
@@ -222,7 +226,7 @@ namespace AstroModIntegrator
                                 PropertyData[] ourArr = ((ArrayPropertyData)bit).Value;
                                 int oldSize = ourArr.Length;
                                 Array.Resize(ref ourArr, oldSize + 1);
-                                refData3.ObjectName = new FName(refData3.ObjectName.Value, oldSize + 2);
+                                refData3.ObjectName = new FName(y, refData3.ObjectName.Value, oldSize + 2);
                                 ourArr[oldSize] = new ObjectPropertyData(bit.Name)
                                 {
                                     Value = FPackageIndex.FromRawIndex(y.Exports.Count) // the SCS_Node

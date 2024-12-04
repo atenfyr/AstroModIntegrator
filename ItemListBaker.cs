@@ -4,7 +4,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using UAssetAPI;
+using UAssetAPI.ExportTypes;
 using UAssetAPI.PropertyTypes;
+using UAssetAPI.PropertyTypes.Objects;
+using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
@@ -81,7 +84,7 @@ namespace AstroModIntegrator
                                 {
                                     y.AddNameReference(new FString(realName));
                                     y.AddNameReference(new FString(className));
-                                    Import newLink = new Import("/Script/Engine", "BlueprintGeneratedClass", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), realName)), className);
+                                    Import newLink = new Import("/Script/Engine", "BlueprintGeneratedClass", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), realName, false, y)), className, false, y);
                                     bigNewLink = y.AddImport(newLink);
                                 }
 
@@ -96,7 +99,7 @@ namespace AstroModIntegrator
                                 y.AddNameReference(new FString(realName + "." + softClassName));
                                 usArrData[oldLen] = new SoftObjectPropertyData(currentItemTypesProperty.Name)
                                 {
-                                    Value = new FName(realName + "." + softClassName),
+                                    Value = new FSoftObjectPath(null, new FName(y, realName + "." + softClassName), null)
                                 };
                                 itemTypesProperty[itemPaths.Key][prop].Value = usArrData;
                                 break;

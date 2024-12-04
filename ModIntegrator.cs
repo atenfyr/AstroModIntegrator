@@ -18,12 +18,10 @@ namespace AstroModIntegrator
         public Version DetectedAstroBuild;
         // End Exposed Fields //
 
-        private static string[] MapPaths = new string[] {
+        private static string[] DefaultMapPaths = [
             "Astro/Content/Maps/Staging_T2.umap",
-            "Astro/Content/Maps/Staging_T2_PackedPlanets_Switch.umap",
-            //"Astro/Content/Maps/TutorialMoon_Prototype_v2.umap", // Tutorial not integrated for performance
-            "Astro/Content/Maps/test/BasicSphereT2.umap",
-        };
+            "Astro/Content/Maps/Staging_T2_PackedPlanets_Switch.umap"
+        ];
 
         internal byte[] FindFile(string target, PakExtractor ourExtractor)
         {
@@ -42,7 +40,7 @@ namespace AstroModIntegrator
                 {
                     try
                     {
-                        PakExtractor ourExtractor = new PakExtractor(new BinaryReader(f));
+                        PakExtractor ourExtractor = new PakExtractor(f);
 
                         Metadata us = null;
                         try
@@ -53,10 +51,12 @@ namespace AstroModIntegrator
 
                         if (us == null || IntegratorUtils.IgnoredModIDs.Contains(us.ModID)) continue;
 
-                        foreach (KeyValuePair<string, long> entry in ourExtractor.PathToOffset)
+                        foreach (string entry in ourExtractor.GetAllPaths())
                         {
-                            SearchLookup[entry.Key] = realPakPath;
+                            SearchLookup[entry] = realPakPath;
                         }
+
+                        // no need to dispose ourExtractor
                     }
                     catch
                     {
@@ -77,7 +77,7 @@ namespace AstroModIntegrator
                     {
                         try
                         {
-                            PakExtractor modPakExtractor = new PakExtractor(new BinaryReader(f));
+                            PakExtractor modPakExtractor = new PakExtractor(f);
                             if (modPakExtractor.HasPath(searchingPath)) return modPakExtractor.ReadRaw(searchingPath);
                         }
                         catch { }
@@ -109,7 +109,7 @@ namespace AstroModIntegrator
             int modCount = 0;
             Dictionary<string, List<string>> newComponents = new Dictionary<string, List<string>>();
             Dictionary<string, Dictionary<string, List<string>>> newItems = new Dictionary<string, Dictionary<string, List<string>>>();
-            List<string> newPersistentActors = new List<string>();
+            Dictionary<string, List<string>> newPersistentActors = new Dictionary<string, List<string>>();
             List<string> newTrailheads = new List<string>();
             List<Metadata> allMods = new List<Metadata>();
             foreach (string file in files)
@@ -119,7 +119,7 @@ namespace AstroModIntegrator
                     Metadata us = null;
                     try
                     {
-                        us = new PakExtractor(new BinaryReader(f)).ReadMetadata();
+                        us = new PakExtractor(f).ReadMetadata();
                     }
                     catch
                     {
@@ -130,7 +130,7 @@ namespace AstroModIntegrator
                     modCount++;
                     allMods.Add(us);
 
-                    Dictionary<string, List<string>> theseComponents = us.LinkedActorComponents;
+                    Dictionary<string, List<string>> theseComponents = us.IntegratorEntries.LinkedActorComponents;
                     if (theseComponents != null)
                     {
                         foreach (KeyValuePair<string, List<string>> entry in theseComponents)
@@ -146,9 +146,18 @@ namespace AstroModIntegrator
                         }
                     }
 
-                    Dictionary<string, Dictionary<string, List<string>>> theseItems = us.ItemListEntries;
+                    Dictionary<string, Dictionary<string, List<string>>> theseItems = us.IntegratorEntries.ItemListEntries;
                     if (theseItems != null)
                     {
+                        // we duplicate /Game/Items/ItemTypes/MasterItemList entries into /Game/Items/ItemTypes/BaseGameInitialKnownItemList, if the latter list is not specified
+                        // this provides backwards compatibility for older mods
+                        // this can just be suppressed by specifying an entry for /Game/Items/ItemTypes/BaseGameInitialKnownItemList in metadata
+                        if (theseItems.ContainsKey("/Game/Items/ItemTypes/MasterItemList") && !theseItems.ContainsKey("/Game/Items/ItemTypes/BaseGameInitialKnownItemList"))
+                        {
+                            theseItems["/Game/Items/ItemTypes/BaseGameInitialKnownItemList"] = theseItems["/Game/Items/ItemTypes/MasterItemList"];
+                        }
+
+                        // parse as normal
                         foreach (KeyValuePair<string, Dictionary<string, List<string>>> entry in theseItems)
                         {
                             if (newItems.ContainsKey(entry.Key))
@@ -172,17 +181,24 @@ namespace AstroModIntegrator
                         }
                     }
 
-                    List<string> thesePersistentActors = us.PersistentActors;
+                    List<string> thesePersistentActors = us.IntegratorEntries.PersistentActors;
                     if (thesePersistentActors != null)
                     {
-                        newPersistentActors.AddRange(thesePersistentActors);
+                        List<string> mapPaths = us.IntegratorEntries.PersistentActorMaps ?? DefaultMapPaths.ToList();
+                        foreach (string mapPath in mapPaths)
+                        {
+                            if (!newPersistentActors.ContainsKey(mapPath)) newPersistentActors[mapPath] = new List<string>();
+                            newPersistentActors[mapPath].AddRange(thesePersistentActors);
+                        }
                     }
 
-                    List<string> theseTrailheads = us.MissionTrailheads;
+                    List<string> theseTrailheads = us.IntegratorEntries.MissionTrailheads;
                     if (theseTrailheads != null)
                     {
                         newTrailheads.AddRange(theseTrailheads);
                     }
+
+                    // TODO: biome placement modifiers
                 }
             }
 
@@ -196,13 +212,23 @@ namespace AstroModIntegrator
                 // Apply static files
                 CreatedPakData = StarterPakData.ToDictionary(entry => entry.Key, entry => (byte[])entry.Value.Clone());
 
-                if (!newComponents.ContainsKey("/Game/Globals/PlayControllerInstance")) newComponents.Add("/Game/Globals/PlayControllerInstance", new List<string>());
-                newComponents["/Game/Globals/PlayControllerInstance"].Add("/Game/Integrator/ServerModComponent");
+                // attach ServerModComponent to PlayControllerInstance
+                // but, I guess this feature isn't implemented anymore with the new assets?
+
+                //if (!newComponents.ContainsKey("/Game/Globals/PlayControllerInstance")) newComponents.Add("/Game/Globals/PlayControllerInstance", new List<string>());
+                //newComponents["/Game/Globals/PlayControllerInstance"].Add("/Game/Integrator/ServerModComponent");
+
+                // add NotificationActor to default maps
+                foreach (string map in DefaultMapPaths)
+                {
+                    if (!newPersistentActors.ContainsKey(map)) newPersistentActors[map] = new List<string>();
+                    newPersistentActors[map].Add("/Game/Integrator/NotificationActor");
+                }
 
                 // Generate mods data table
                 var dtb = new DataTableBaker(this);
                 IntegratorUtils.SplitExportFiles(dtb.Bake(allMods.ToArray(), OptionalModIDs, IntegratorUtils.Concatenate(CreatedPakData["Astro/Content/Integrator/ListOfMods.uasset"], CreatedPakData["Astro/Content/Integrator/ListOfMods.uexp"])), "Astro/Content/Integrator/ListOfMods.uasset", CreatedPakData);
-                IntegratorUtils.SplitExportFiles(dtb.Bake2(IntegratorUtils.Concatenate(CreatedPakData["Astro/Content/Integrator/IntegratorStatics.uasset"], CreatedPakData["Astro/Content/Integrator/IntegratorStatics.uexp"])), "Astro/Content/Integrator/IntegratorStatics.uasset", CreatedPakData);
+                IntegratorUtils.SplitExportFiles(dtb.Bake2(IntegratorUtils.Concatenate(CreatedPakData["Astro/Content/Integrator/IntegratorStatics_BP.uasset"], CreatedPakData["Astro/Content/Integrator/IntegratorStatics_BP.uexp"])), "Astro/Content/Integrator/IntegratorStatics_BP.uasset", CreatedPakData);
             }
 
             using (FileStream f = new FileStream(realPakPath, FileMode.Open, FileAccess.Read))
@@ -210,7 +236,7 @@ namespace AstroModIntegrator
                 PakExtractor ourExtractor = null;
                 try
                 {
-                    ourExtractor = new PakExtractor(new BinaryReader(f));
+                    ourExtractor = new PakExtractor(f);
                 }
                 catch { }
 
@@ -231,11 +257,11 @@ namespace AstroModIntegrator
                     // Patch level for persistent actors and missions
                     if (newPersistentActors.Count > 0 || newTrailheads.Count > 0)
                     {
-                        foreach (string mapPath in MapPaths)
+                        foreach (KeyValuePair<string, List<string>> entry in newPersistentActors)
                         {
-                            byte[] mapPathData1 = FindFile(mapPath, ourExtractor);
-                            byte[] mapPathData2 = FindFile(Path.ChangeExtension(mapPath, ".uexp"), ourExtractor) ?? new byte[0];
-                            if (mapPathData1 != null) IntegratorUtils.SplitExportFiles(levelBaker.Bake(newPersistentActors.ToArray(), newTrailheads.ToArray(), IntegratorUtils.Concatenate(mapPathData1, mapPathData2)), mapPath, CreatedPakData);
+                            byte[] mapPathData1 = FindFile(entry.Key, ourExtractor);
+                            byte[] mapPathData2 = FindFile(Path.ChangeExtension(entry.Key, ".uexp"), ourExtractor) ?? Array.Empty<byte>();
+                            if (mapPathData1 != null) IntegratorUtils.SplitExportFiles(levelBaker.Bake(entry.Value.ToArray(), newTrailheads.ToArray(), IntegratorUtils.Concatenate(mapPathData1, mapPathData2)), entry.Key, CreatedPakData);
                         }
                     }
 
@@ -245,7 +271,7 @@ namespace AstroModIntegrator
                         string establishedPath = entry.Key.ConvertGamePathToAbsolutePath();
 
                         byte[] actorData1 = FindFile(establishedPath, ourExtractor);
-                        byte[] actorData2 = FindFile(Path.ChangeExtension(establishedPath, ".uexp"), ourExtractor) ?? new byte[0];
+                        byte[] actorData2 = FindFile(Path.ChangeExtension(establishedPath, ".uexp"), ourExtractor) ?? Array.Empty<byte>();
                         if (actorData1 == null) continue;
                         try
                         {
@@ -263,7 +289,7 @@ namespace AstroModIntegrator
                         string establishedPath = entry.Key.ConvertGamePathToAbsolutePath();
 
                         byte[] actorData1 = FindFile(establishedPath, ourExtractor);
-                        byte[] actorData2 = FindFile(Path.ChangeExtension(establishedPath, ".uexp"), ourExtractor) ?? new byte[0];
+                        byte[] actorData2 = FindFile(Path.ChangeExtension(establishedPath, ".uexp"), ourExtractor) ?? Array.Empty<byte>();
                         if (actorData1 == null) continue;
                         try
                         {
@@ -283,6 +309,11 @@ namespace AstroModIntegrator
             {
                 f.Write(pakData, 0, pakData.Length);
             }
+
+            foreach (var path in IntegratorUtils.BannedFilesInOutputDirectory)
+            {
+                try { File.Delete(Path.Combine(paksPath, path)); } catch { }
+            }
         }
 
         private Dictionary<string, byte[]> StarterPakData = new Dictionary<string, byte[]>();
@@ -291,10 +322,10 @@ namespace AstroModIntegrator
             OptionalModIDs = new List<string>();
 
             // Include static assets
-            PakExtractor staticAssetsExtractor = new PakExtractor(new BinaryReader(new MemoryStream(Properties.Resources.IntegratorStaticAssets)));
-            foreach (KeyValuePair<string, long> entry in staticAssetsExtractor.PathToOffset)
+            PakExtractor staticAssetsExtractor = new PakExtractor(new MemoryStream(Properties.Resources.IntegratorStaticAssets));
+            foreach (string entry in staticAssetsExtractor.GetAllPaths())
             {
-                StarterPakData[entry.Key] = staticAssetsExtractor.ReadRaw(entry.Value);
+                StarterPakData[entry] = staticAssetsExtractor.ReadRaw(entry);
             }
         }
     }
