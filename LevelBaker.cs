@@ -1,15 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using UAssetAPI;
 using UAssetAPI.ExportTypes;
-using UAssetAPI.PropertyTypes;
 using UAssetAPI.PropertyTypes.Objects;
-using UAssetAPI.StructTypes;
 using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
@@ -49,54 +43,12 @@ namespace AstroModIntegrator
             5. Create the new Actor_C category, set its Linkage to the Level category, set the garbage1 to 0 (maybe random number idk), DefaultSceneRoot & RootComponent = the matching SceneComponent
         */
 
-        public UAsset Bake(string[] newComponents, string[] newTrailheads, byte[] superRawData)
+        public UAsset Bake(string[] newComponents, byte[] superRawData)
         {
             UAsset y = new UAsset(IntegratorUtils.EngineVersion);
             y.UseSeparateBulkDataFiles = true;
             y.CustomSerializationFlags = CustomSerializationFlags.SkipParsingBytecode | CustomSerializationFlags.SkipPreloadDependencyLoading;
             y.Read(new AssetBinaryReader(new MemoryStream(superRawData), y));
-
-            // Missions
-            if (newTrailheads.Length > 0)
-            {
-                for (int cat = 0; cat < y.Exports.Count; cat++)
-                {
-                    if (y.Exports[cat] is NormalExport normalCat)
-                    {
-                        if ((normalCat.ClassIndex.IsImport() ? normalCat.ClassIndex.ToImport(y).ObjectName.Value.Value : string.Empty) != "AstroSettings") continue;
-
-                        for (int i = 0; i < normalCat.Data.Count; i++)
-                        {
-                            if (normalCat.Data[i].Name.Value.Value == "MissionData" && normalCat.Data[i] is ArrayPropertyData arrDat && arrDat.ArrayType.Value.Value == "ObjectProperty")
-                            {
-                                y.AddNameReference(new FString("AstroMissionDataAsset"));
-
-                                PropertyData[] usArrData = arrDat.Value;
-                                int oldLen = usArrData.Length;
-                                Array.Resize(ref usArrData, usArrData.Length + newTrailheads.Length);
-                                for (int j = 0; j < newTrailheads.Length; j++)
-                                {
-                                    string realName = newTrailheads[j];
-                                    string softClassName = Path.GetFileNameWithoutExtension(realName);
-
-                                    y.AddNameReference(new FString(realName));
-                                    y.AddNameReference(new FString(softClassName));
-                                    Import newLink = new Import("/Script/Astro", "AstroMissionDataAsset", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), realName, false, y)), softClassName, false, y);
-                                    FPackageIndex bigNewLink = y.AddImport(newLink);
-
-                                    usArrData[oldLen + j] = new ObjectPropertyData(arrDat.Name)
-                                    {
-                                        Value = bigNewLink
-                                    };
-                                }
-                                arrDat.Value = usArrData;
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
 
             if (newComponents.Length == 0) return y;
 

@@ -67,7 +67,7 @@ namespace AstroModIntegrator
             using (MemoryStream assetFile = new MemoryStream((int)breakingOffPoint))
             {
                 CopySplitUp(newData, assetFile, 0, (int)breakingOffPoint);
-                createdPakData[Path.ChangeExtension(desiredPath, ".uasset")] = assetFile.ToArray();
+                createdPakData[desiredPath] = assetFile.ToArray();
             }
 
             int lengthOfRest = (int)(newData.Length - breakingOffPoint);

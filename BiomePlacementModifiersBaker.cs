@@ -1,9 +1,12 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
+using UAssetAPI;
+using UAssetAPI.ExportTypes;
+using UAssetAPI.PropertyTypes.Objects;
+using UAssetAPI.PropertyTypes.Structs;
+using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
@@ -43,5 +46,154 @@ namespace AstroModIntegrator
 
     public class BiomePlacementModifiersBaker
     {
+        public UAsset Bake(List<PlacementModifier> modifiers, string[] newTrailheads, byte[] mapData)
+        {
+            UAsset y = new UAsset(IntegratorUtils.EngineVersion);
+            y.UseSeparateBulkDataFiles = true;
+            y.CustomSerializationFlags = CustomSerializationFlags.SkipParsingBytecode | CustomSerializationFlags.SkipPreloadDependencyLoading;
+            y.Read(new AssetBinaryReader(new MemoryStream(mapData), y));
+
+            // also do mission trailheads here
+
+            // Missions
+            if (newTrailheads.Length > 0)
+            {
+                for (int cat = 0; cat < y.Exports.Count; cat++)
+                {
+                    if (y.Exports[cat] is NormalExport normalCat)
+                    {
+                        if ((normalCat.ClassIndex.IsImport() ? normalCat.ClassIndex.ToImport(y).ObjectName.Value.Value : string.Empty) != "AstroSettings") continue;
+
+                        for (int i = 0; i < normalCat.Data.Count; i++)
+                        {
+                            if (normalCat.Data[i].Name.Value.Value == "MissionData" && normalCat.Data[i] is ArrayPropertyData arrDat && arrDat.ArrayType.Value.Value == "ObjectProperty")
+                            {
+                                y.AddNameReference(new FString("AstroMissionDataAsset"));
+
+                                PropertyData[] usArrData = arrDat.Value;
+                                int oldLen = usArrData.Length;
+                                Array.Resize(ref usArrData, usArrData.Length + newTrailheads.Length);
+                                for (int j = 0; j < newTrailheads.Length; j++)
+                                {
+                                    string realName = newTrailheads[j];
+                                    string softClassName = Path.GetFileNameWithoutExtension(realName);
+
+                                    y.AddNameReference(new FString(realName));
+                                    y.AddNameReference(new FString(softClassName));
+                                    Import newLink = new Import("/Script/Astro", "AstroMissionDataAsset", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), realName, false, y)), softClassName, false, y);
+                                    FPackageIndex bigNewLink = y.AddImport(newLink);
+
+                                    usArrData[oldLen + j] = new ObjectPropertyData(arrDat.Name)
+                                    {
+                                        Value = bigNewLink
+                                    };
+                                }
+                                arrDat.Value = usArrData;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // biome placement modifiers
+
+            Dictionary<string, NormalExport> voxelVolumeExports = new Dictionary<string, NormalExport>();
+            foreach (var exp in y.Exports)
+            {
+                if (exp is NormalExport nexp && nexp.GetExportClassType().ToString() == "VoxelVolumeComponent" && nexp.ObjectName.ToString() != "Default Voxel Volume")
+                {
+                    voxelVolumeExports[nexp.ObjectName.ToString()] = nexp;
+                }
+            }
+
+            foreach (var modifier in modifiers)
+            {
+                try
+                {
+                    List<FPackageIndex> modifierImports = new List<FPackageIndex>();
+
+                    foreach (string path in modifier.Placements)
+                    {
+                        FPackageIndex packageImport = y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), path, false, y));
+                        FPackageIndex modifierImport = y.AddImport(new Import("/Script/Terrain2", "ProceduralModifier", packageImport, Path.GetFileNameWithoutExtension(path), false, y));
+                        modifierImports.Add(modifierImport);
+                    }
+
+                    string voxelsName = modifier.PlanetType + "Voxels";
+                    NormalExport voxelsExport = y[FName.FromString(y, voxelsName)] as NormalExport;
+                    if (voxelsExport == null) throw new FormatException("Unable to find voxels for planet " + modifier.PlanetType);
+
+                    StructPropertyData biome = null;
+                    switch (modifier.BiomeType)
+                    {
+                        case BiomeType.Surface:
+                            var listOfBiomes = voxelsExport["SurfaceBiomes"] as ArrayPropertyData;
+                            if (listOfBiomes == null) throw new FormatException("Unable to find SurfaceBiomes for planet " + modifier.PlanetType);
+                            foreach (PropertyData testBiomeRaw in listOfBiomes.Value)
+                            {
+                                if (testBiomeRaw is StructPropertyData testBiome)
+                                {
+                                    if ((testBiome["Name"] as NamePropertyData)?.Value?.ToString() == modifier.BiomeName)
+                                    {
+                                        biome = testBiome;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (biome == null) throw new FormatException("Unable to find biome " + modifier.BiomeName + " on planet " + modifier.PlanetType);
+                            break;
+                        case BiomeType.Crust:
+                            biome = voxelsExport["CrustBiome"] as StructPropertyData;
+                            if (biome == null) throw new FormatException("Unable to find crust biome on planet " + modifier.PlanetType);
+                            break;
+                    }
+
+                    ArrayPropertyData layers = biome["Layers"] as ArrayPropertyData;
+                    if (layers == null) throw new FormatException("Unable to find layers for biome " + modifier.BiomeName + " on planet " + modifier.PlanetType);
+
+                    StructPropertyData layer = null;
+                    foreach (PropertyData testLayerRaw in layers.Value)
+                    {
+                        if (testLayerRaw is StructPropertyData testLayer)
+                        {
+                            if ((testLayer["Name"] as NamePropertyData)?.Value?.ToString() == modifier.LayerName)
+                            {
+                                layer = testLayer;
+                                break;
+                            }
+                        }
+                    }
+                    if (layer == null) throw new FormatException("Unable to find layer " + modifier.LayerName + " in biome " + modifier.BiomeName + " on planet " + modifier.PlanetType);
+
+                    ArrayPropertyData objectPlacementModifiers = layer["ObjectPlacementModifiers"] as ArrayPropertyData;
+                    if (objectPlacementModifiers == null) throw new FormatException("Unable to find ObjectPlacementModifiers in layer " + modifier.LayerName + " in biome " + modifier.BiomeName + " on planet " + modifier.PlanetType);
+
+                    PropertyData[] oldVal = objectPlacementModifiers.Value;
+                    PropertyData[] newVal = new PropertyData[oldVal.Length + modifierImports.Count];
+                    Array.Copy(oldVal, 0, newVal, 0, oldVal.Length);
+
+                    int i = oldVal.Length;
+                    foreach (FPackageIndex idx in modifierImports)
+                    {
+                        var newObject = new ObjectPropertyData(); // name not serialized because it's in an array
+                        newObject.Value = idx;
+                        newVal[i++] = newObject;
+                    }
+
+                    objectPlacementModifiers.Value = newVal;
+
+                    // all done!
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+
+            return y;
+        }
     }
 }
