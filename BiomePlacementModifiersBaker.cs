@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UAssetAPI;
 using UAssetAPI.ExportTypes;
 using UAssetAPI.PropertyTypes.Objects;
@@ -10,10 +11,10 @@ using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
 {
-    // This source code is adapted from astro_mod_loader
+    // The logic for this source code was obtained by referencing the astro_modloader source code
     // https://github.com/AstroTechies/astro_modloader/blob/87145c9d5e5ba2914e576012820d662558619372/astro_mod_integrator/src/handlers/biome_placement_modifiers.rs#L35
-    // while astro_mod_loader is unlicensed, both pieces of software are products of AstroTechies, which holds all copyright to the software
-    // (in the same vein as how astro_mod_loader is not required to follow any license agreement for AstroModLoader as it is a product of the same organization)
+    // while astro_modloader is unlicensed, I consider there to be insufficient originality for the snippets referenced here to be protected under copyright law
+    // (i.e. there is no other reasonable technique that could be used to conduct the operation, and nothing other than the overarching technique is derived)
 
     public enum BiomeType
     {
@@ -52,6 +53,9 @@ namespace AstroModIntegrator
             y.UseSeparateBulkDataFiles = true;
             y.CustomSerializationFlags = CustomSerializationFlags.SkipParsingBytecode | CustomSerializationFlags.SkipPreloadDependencyLoading;
             y.Read(new AssetBinaryReader(new MemoryStream(mapData), y));
+
+            modifiers = modifiers.Distinct().ToList();
+            newTrailheads = newTrailheads.Distinct().ToArray();
 
             // also do mission trailheads here
 

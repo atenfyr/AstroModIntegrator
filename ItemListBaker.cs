@@ -25,6 +25,9 @@ namespace AstroModIntegrator
             y.CustomSerializationFlags = CustomSerializationFlags.SkipParsingBytecode | CustomSerializationFlags.SkipPreloadDependencyLoading;
             y.Read(new AssetBinaryReader(new MemoryStream(superRawData), y));
 
+            // eliminate duplicates
+            foreach (var key in newItems.Keys) newItems[key] = newItems[key].Distinct().ToList();
+
             // Find some categories
             Dictionary<string, List<ArrayPropertyData>> itemTypesProperty = new Dictionary<string, List<ArrayPropertyData>>();
             for (int cat = 0; cat < y.Exports.Count; cat++)

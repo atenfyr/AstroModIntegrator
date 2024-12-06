@@ -143,5 +143,35 @@ namespace AstroModIntegrator
 
             return y;
         }
+
+        public UAsset Bake3(byte[] superRawData)
+        {
+            UAsset y = new UAsset(IntegratorUtils.EngineVersion);
+            y.UseSeparateBulkDataFiles = true;
+            y.Read(new AssetBinaryReader(new MemoryStream(superRawData), y));
+
+            FPackageIndex brandNewLink = y.AddImport(new Import("/Script/Engine", "BlueprintGeneratedClass", y.AddImport(new Import("/Script/CoreUObject", "Package", FPackageIndex.FromRawIndex(0), "/Game/Integrator/IntegratorStatics_BP", false, y)), "IntegratorStatics_BP_C", false, y));
+
+            NormalExport cat1 = y.Exports[0] as NormalExport;
+            if (cat1 == null) return null;
+
+            cat1.Data = new List<PropertyData>()
+            {
+                new StrPropertyData(new FName(y, "IntegratorVersion"))
+                {
+                    Value = new FString(IntegratorUtils.CurrentVersion.ToString(), Encoding.ASCII)
+                },
+                new BoolPropertyData(new FName(y, "RefuseMismatchedConnections"))
+                {
+                    Value = ParentIntegrator.RefuseMismatchedConnections
+                },
+                new ObjectPropertyData(new FName(y, "NativeClass"))
+                {
+                    Value = brandNewLink
+                }
+            };
+
+            return y;
+        }
     }
 }

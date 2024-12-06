@@ -218,22 +218,21 @@ namespace AstroModIntegrator
                 CreatedPakData = StarterPakData.ToDictionary(entry => entry.Key, entry => (byte[])entry.Value.Clone());
 
                 // attach ServerModComponent to PlayControllerInstance
-                // but, I guess this feature isn't implemented anymore with the new assets?
-
-                //if (!newComponents.ContainsKey("/Game/Globals/PlayControllerInstance")) newComponents.Add("/Game/Globals/PlayControllerInstance", new List<string>());
-                //newComponents["/Game/Globals/PlayControllerInstance"].Add("/Game/Integrator/ServerModComponent");
+                if (!newComponents.ContainsKey("/Game/Globals/PlayControllerInstance")) newComponents.Add("/Game/Globals/PlayControllerInstance", new List<string>());
+                newComponents["/Game/Globals/PlayControllerInstance"].Add("/Game/Integrator/ServerModComponent");
 
                 // add NotificationActor to default maps
-                foreach (string map in DefaultMapPaths)
+                /*foreach (string map in DefaultMapPaths)
                 {
                     if (!newPersistentActors.ContainsKey(map)) newPersistentActors[map] = new List<string>();
                     newPersistentActors[map].Add("/Game/Integrator/NotificationActor");
-                }
+                }*/
 
                 // Generate mods data table
                 var dtb = new DataTableBaker(this);
                 IntegratorUtils.SplitExportFiles(dtb.Bake(allMods.ToArray(), OptionalModIDs, IntegratorUtils.Concatenate(CreatedPakData["Astro/Content/Integrator/ListOfMods.uasset"], CreatedPakData["Astro/Content/Integrator/ListOfMods.uexp"])), "Astro/Content/Integrator/ListOfMods.uasset", CreatedPakData);
                 IntegratorUtils.SplitExportFiles(dtb.Bake2(IntegratorUtils.Concatenate(CreatedPakData["Astro/Content/Integrator/IntegratorStatics_BP.uasset"], CreatedPakData["Astro/Content/Integrator/IntegratorStatics_BP.uexp"])), "Astro/Content/Integrator/IntegratorStatics_BP.uasset", CreatedPakData);
+                IntegratorUtils.SplitExportFiles(dtb.Bake3(IntegratorUtils.Concatenate(CreatedPakData["Astro/Content/Integrator/IntegratorStatics.uasset"], CreatedPakData["Astro/Content/Integrator/IntegratorStatics.uexp"])), "Astro/Content/Integrator/IntegratorStatics.uasset", CreatedPakData);
             }
 
             using (FileStream f = new FileStream(realPakPath, FileMode.Open, FileAccess.Read))

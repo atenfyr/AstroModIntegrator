@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using UAssetAPI;
 using UAssetAPI.ExportTypes;
-using UAssetAPI.PropertyTypes;
 using UAssetAPI.PropertyTypes.Objects;
 using UAssetAPI.PropertyTypes.Structs;
-using UAssetAPI.StructTypes;
 using UAssetAPI.UnrealTypes;
 
 namespace AstroModIntegrator
@@ -33,6 +31,8 @@ namespace AstroModIntegrator
             y.UseSeparateBulkDataFiles = true;
             y.CustomSerializationFlags = CustomSerializationFlags.SkipParsingBytecode | CustomSerializationFlags.SkipPreloadDependencyLoading;
             y.Read(new AssetBinaryReader(new MemoryStream(superRawData), y));
+
+            newComponents = newComponents.Distinct().ToArray();
 
             int scsLocation = -1;
             int bgcLocation = -1;
