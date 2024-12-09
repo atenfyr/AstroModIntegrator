@@ -1,0 +1,1 @@
+These are the integrator assets that are manually pre-built into IntegratorStaticAssets.pak. You can cook these assets yourself in the Unreal Editor by applying the [AstroTechies ModdingKit](https://github.com/AstroTechies/ModdingKit).

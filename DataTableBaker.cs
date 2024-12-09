@@ -133,7 +133,7 @@ namespace AstroModIntegrator
             {
                 new StrPropertyData(new FName(y, "IntegratorVersion"))
                 {
-                    Value = new FString(IntegratorUtils.CurrentVersion.ToString(), Encoding.ASCII)
+                    Value = new FString("Classic " + IntegratorUtils.CurrentVersion.ToString(), Encoding.ASCII)
                 },
                 new BoolPropertyData(new FName(y, "RefuseMismatchedConnections"))
                 {
@@ -159,7 +159,7 @@ namespace AstroModIntegrator
             {
                 new StrPropertyData(new FName(y, "IntegratorVersion"))
                 {
-                    Value = new FString(IntegratorUtils.CurrentVersion.ToString(), Encoding.ASCII)
+                    Value = new FString("Classic " + IntegratorUtils.CurrentVersion.ToString(), Encoding.ASCII)
                 },
                 new BoolPropertyData(new FName(y, "RefuseMismatchedConnections"))
                 {
