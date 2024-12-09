@@ -1,4 +1,4 @@
-# AstroModIntegrator
+# AstroModIntegrator Classic
 Integrates Astroneer mods based on their metadata.json files in order to avoid mod conflict.
 
 ## Sample Integration Code
